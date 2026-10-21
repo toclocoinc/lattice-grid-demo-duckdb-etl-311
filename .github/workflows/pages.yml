@@ -35,12 +35,9 @@ jobs:
       - name: Install
         run: npm ci
 
-      # Opens the page in headless Chrome against a range-capable server and
-      # checks every figure against Node's own DuckDB. It fails the build if
-      # the page says anything the data does not.
-      - name: Check the page tells the truth
-        run: npm run verify
-
+      # `npm run verify` is not run here: it needs the raw slice, which is built by
+      # `npm run build-data` and hosted at data.latticegrid.dev rather than kept in
+      # the repository. Run it locally before publishing.
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
