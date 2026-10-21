@@ -1,0 +1,6 @@
+node_modules/
+.cache/
+.scratch-12057/
+data/*.parquet
+data/*.csv
+data/*.zip

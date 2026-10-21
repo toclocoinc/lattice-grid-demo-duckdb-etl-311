@@ -1,0 +1,12 @@
+{
+  "name": "lattice-grid-demo-duckdb-etl-311",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "An ETL pipeline, before and after, on a month of NYC 311 requests: raw text to clean Parquet, step by step, in the browser with DuckDB-Wasm and Lattice Grid.",
+  "dependencies": { "@toclocoinc/lattice-grid": "^1.110.0" },
+  "devDependencies": { "@duckdb/node-api": "^1.5.5-r.5" },
+  "engines": { "node": ">=22" },
+  "scripts": { "start": "node tools/serve.mjs", "verify": "node tools/verify.mjs", "build-data": "node tools/build-parquet.mjs" }
+}

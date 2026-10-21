@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NYC 311 ETL in the browser: raw text to clean Parquet with DuckDB and Lattice Grid</title>
+    <meta
+      name="description"
+      content="A month of New York City 311 requests, cleaned in six SQL steps that run in DuckDB-Wasm in your tab, with Lattice Grid showing the raw and the clean table side by side and a clean Parquet file to download."
+    />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./node_modules/@toclocoinc/lattice-grid/lattice-grid.min.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main id="app">
+      <div class="loading">
+        <h1>NYC 311, raw to clean</h1>
+        <p class="loading-message">Starting...</p>
+      </div>
+    </main>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
