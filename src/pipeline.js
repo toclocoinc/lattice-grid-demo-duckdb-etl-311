@@ -4,6 +4,7 @@
  * Parquet export. Every number on it comes from a DuckDB query.
  */
 
+import { megabytes, slot } from './loading.js';
 import { readAll, readOne, recordingConnection } from './duckdb.js';
 import { STEPS, FINAL_STEP, viewName } from './steps.js';
 import {
@@ -40,7 +41,7 @@ function columnFor({ column_name: field, column_type: type }) {
   return column;
 }
 
-export function buildPipeline({ root, LG, createChart, connection, db, version }) {
+export function buildPipeline({ root, LG, createChart, connection, db, version, reads, status, parquetBytes }) {
   const built = {
     step: null, stepMs: {}, rowCounts: {}, panes: {}, chart: null, chartGrid: null,
     chartData: null, connection, ready: false, exported: null, duckdbVersion: version,
@@ -66,6 +67,7 @@ export function buildPipeline({ root, LG, createChart, connection, db, version }
   facts.dataset.role = 'facts';
   head.append(facts);
   app.append(head);
+  app.append(status.el);
 
   const layout = el('div', 'layout');
   app.append(layout);
@@ -150,9 +152,11 @@ export function buildPipeline({ root, LG, createChart, connection, db, version }
     const summaryTitle = el('h3', null, 'Column summary');
     const summaryHost = el('div', 'summary-host');
     summaryHost.setAttribute('aria-label', `${title} column summary`);
-    panel.append(h, sub, tools, gridHost, timing, summaryTitle, summaryHost);
+    const gridSlot = slot(gridHost, `Waiting for the ${MONTH_LABEL} requests, then these rows`);
+    const summarySlot = slot(summaryHost, 'Waiting for the rows, then the column summary');
+    panel.append(h, sub, tools, gridSlot.el, timing, summaryTitle, summarySlot.el);
     compare.append(panel);
-    return { panel, heading, sub, search, timing, gridHost, summaryHost };
+    return { panel, heading, sub, search, timing, gridHost, summaryHost, gridSlot, summarySlot };
   }
   const leftUi = makePanel('raw', 'Raw', 'Step 1 as loaded: all text, blanks still empty strings.');
   const rightUi = makePanel('out', 'Output', '');
@@ -182,7 +186,8 @@ export function buildPipeline({ root, LG, createChart, connection, db, version }
   chartSub.dataset.role = 'chart-note';
   const chartBox = el('div', 'chart-box');
   chartBox.dataset.role = 'chart';
-  chartPanel.append(chartHead, chartSub, chartBox);
+  const chartSlot = slot(chartBox, `Waiting for the ${MONTH_LABEL} requests, then this chart`);
+  chartPanel.append(chartHead, chartSub, chartSlot.el);
   main.append(chartPanel);
 
   const colophon = el('footer', 'colophon');
@@ -247,6 +252,8 @@ export function buildPipeline({ root, LG, createChart, connection, db, version }
     pane.summaryGrid?.destroy?.();
     pane.ui.gridHost.textContent = '';
     pane.ui.summaryHost.textContent = '';
+    pane.ui.gridSlot.show('Preparing these rows');
+    pane.ui.summarySlot.show('Counting blanks and distinct values in every column');
     pane.ui.search.value = '';
     pane.lastPage = null;
     pane.lastCount = null;
@@ -284,6 +291,7 @@ export function buildPipeline({ root, LG, createChart, connection, db, version }
       const result = await inner(query, request);
       if (typeof result.total === 'number') pane.total = result.total;
       pane.plan = pane.source.lastPlan?.() ?? null;
+      pane.ui.gridSlot.hide();
       renderTiming(pane);
       if (pane === right) {
         const next = JSON.stringify([query.filters ?? null, query.quick ?? '']);
@@ -316,6 +324,7 @@ export function buildPipeline({ root, LG, createChart, connection, db, version }
       nullShare: total ? row[`b${i}`] / total : 0,
       distinct: row[`d${i}`],
     }));
+    pane.ui.summarySlot.hide();
     pane.summaryGrid = LG.createGrid(pane.ui.summaryHost, {
       rowKey: 'column',
       rows: pane.summary,
@@ -389,9 +398,11 @@ export function buildPipeline({ root, LG, createChart, connection, db, version }
       built.chartGrid = null;
       chartBox.textContent = '';
       chartBox.classList.add('empty');
+      chartSlot.hide();
       return;
     }
     chartBox.classList.remove('empty');
+    if (!built.chartGrid) chartSlot.show('Grouping the requests by day and complaint type');
     const started = performance.now();
     const result = await right.source.aggregate(
       { filters, quick: quick || undefined, sort: [], range: null, groupBy: ['created_day', 'complaint_type'] },
@@ -417,6 +428,7 @@ export function buildPipeline({ root, LG, createChart, connection, db, version }
     if (built.chartGrid) {
       built.chartGrid.rows.load(rows);
       built.chart?.refresh?.();
+      chartSlot.hide();
       return;
     }
     built.chartGrid = LG.createHeadlessGrid({
@@ -433,6 +445,7 @@ export function buildPipeline({ root, LG, createChart, connection, db, version }
       chartBox.append(el('p', 'chart-error', `This chart could not be drawn: ${error.message}`));
       console.error('[etl demo] chart', error);
     }
+    chartSlot.hide();
   }
 
   /* --------------------------------------------------------------- export */
@@ -481,11 +494,22 @@ export function buildPipeline({ root, LG, createChart, connection, db, version }
 
   /* ---------------------------------------------------------------- start */
   built.start = async () => {
+    /* The first read is the Parquet footer, then the columns the grids and summaries touch. */
+    const line = (read) => (parquetBytes
+      ? [`Reading the ${MONTH_LABEL} 311 requests (${megabytes(Math.min(read, parquetBytes))} of ${megabytes(parquetBytes)})`, Math.min(read, parquetBytes) / parquetBytes]
+      : [`Reading the ${MONTH_LABEL} 311 requests (${megabytes(read)} so far)`, null]);
+    status.set(...line(0));
+    const stop = reads.onRead((total) => status.set(...line(total)));
     await runStep(1);
     await mountPane(left, viewName(1), built.rowCounts[1]);
     facts.textContent = `${int(built.rowCounts[1])} raw requests · DuckDB-Wasm ${version} · Parquet read in byte ranges from ${new URL(PARQUET_URL()).host}`;
     void loadRawFile();
     await selectStep(FINAL_STEP);
+    /* The grids, summaries and chart each answer on their own: the line stays up until all have. */
+    status.set('Building the grids, summaries and chart');
+    const answered = () => [left, right].every((p) => p.total != null && p.summaryGrid) && built.chartData;
+    for (let waited = 0; !answered() && waited < 120000; waited += 100) await new Promise((r) => { setTimeout(r, 100); });
+    stop();
   };
 
   built.selectStep = selectStep;

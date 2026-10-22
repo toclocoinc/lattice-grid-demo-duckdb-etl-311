@@ -8,6 +8,8 @@ import * as LG from './node_modules/@toclocoinc/lattice-grid/lattice-grid.esm.mi
 import { createChart } from './node_modules/@toclocoinc/lattice-grid/modules/charts.esm.min.js';
 import { DEMO_LICENCE } from './src/licence.js';
 import { startDuckDB } from './src/duckdb.js';
+import { createStatus, megabytes } from './src/loading.js';
+import { PARQUET_URL, MONTH_LABEL } from './src/config.js';
 import { buildPipeline } from './src/pipeline.js';
 
 /* Applied before anything is drawn: a grid keeps the licence in force when it was built. */
@@ -32,19 +34,36 @@ function showMessage(title, message, hint) {
     panel.append(q);
   }
   root.append(panel);
-  return (next) => { p.textContent = next; };
+}
+
+/** The Parquet file's size from a one-byte range request, or null: it gives the reading bar its total. */
+async function parquetSize() {
+  try {
+    const response = await fetch(PARQUET_URL(), { headers: { Range: 'bytes=0-0' } });
+    const size = Number(response.headers.get('content-range')?.split('/')[1]);
+    return size > 0 ? size : null;
+  } catch { return null; }
 }
 
 async function start() {
   const started = performance.now();
-  const update = showMessage('NYC 311, raw to clean', 'Starting DuckDB in your browser...');
+  /* The status line is in index.html, so it is on screen from first paint. */
+  const status = createStatus(root.querySelector('.load-status'));
+  const size = parquetSize();
   try {
-    const { db, connection, version, close } = await startDuckDB(update);
-    update('Opening the Parquet file...');
-    const built = buildPipeline({ root, LG, createChart, connection, db, version });
+    const { db, connection, version, close, reads } = await startDuckDB(
+      (message) => status.set(message),
+      ({ loaded, total }) => status.set(
+        `Downloading the query engine (${megabytes(total)}, first visit only): ${megabytes(loaded)} of ${megabytes(total)}`,
+        loaded / total,
+      ),
+    );
+    status.set(`Opening the ${MONTH_LABEL} 311 file`);
+    const built = buildPipeline({ root, LG, createChart, connection, db, version, reads, status, parquetBytes: await size });
     window.addEventListener('pagehide', () => { built.destroy(); close(); }, { once: true });
     window.__etlDemo = built;
     await built.start();
+    status.hide();
     built.bootMs = Math.round(performance.now() - started);
     built.ready = true;
     console.log('[etl demo] ready', { ms: built.bootMs, duckdb: version });
