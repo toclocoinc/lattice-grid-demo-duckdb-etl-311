@@ -6,7 +6,7 @@
   "license": "MIT",
   "description": "An ETL pipeline, before and after, on a month of NYC 311 requests: raw text to clean Parquet, step by step, in the browser with DuckDB-Wasm and Lattice Grid.",
   "dependencies": {
-    "@toclocoinc/lattice-grid": "^1.111.0"
+    "@toclocoinc/lattice-grid": "1.111.7"
   },
   "devDependencies": {
     "@duckdb/node-api": "^1.5.5-r.5"

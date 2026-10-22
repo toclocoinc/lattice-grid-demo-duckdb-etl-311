@@ -28,8 +28,8 @@ jobs:
         with:
           node-version: '22'
 
-      # The page loads the grid straight out of node_modules, so the
-      # dependencies are part of what gets published rather than a build input.
+      # The page loads the grid from cdn.latticegrid.dev; dependencies are
+      # installed only for the local check.
       # @duckdb/node-api comes along as a devDependency because the check below
       # recomputes every figure with a second DuckDB, in Node.
       - name: Install
