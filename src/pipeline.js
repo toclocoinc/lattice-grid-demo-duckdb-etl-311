@@ -121,6 +121,8 @@ export function buildPipeline({ root, LG, createChart, connection, db, version, 
   const sqlPre = el('pre', 'sql');
   sqlPre.dataset.role = 'sql';
   sqlPre.tabIndex = 0;
+  sqlTitle.textContent = 'The step’s SQL';
+  sqlPre.textContent = '-- Reading the data first; each step’s SQL appears here as it runs.';
   sqlPanel.append(sqlHead, sqlSummary, sqlPre);
   main.append(sqlPanel);
 
@@ -499,13 +501,15 @@ export function buildPipeline({ root, LG, createChart, connection, db, version, 
       ? [`Reading the ${MONTH_LABEL} 311 requests (${megabytes(Math.min(read, parquetBytes))} of ${megabytes(parquetBytes)})`, Math.min(read, parquetBytes) / parquetBytes]
       : [`Reading the ${MONTH_LABEL} 311 requests (${megabytes(read)} so far)`, null]);
     status.set(...line(0));
-    const stop = reads.onRead((total) => status.set(...line(total)));
+    let building = false;
+    const stop = reads.onRead((total) => { if (!building) status.set(...line(total)); });
     await runStep(1);
     await mountPane(left, viewName(1), built.rowCounts[1]);
     facts.textContent = `${int(built.rowCounts[1])} raw requests · DuckDB-Wasm ${version} · Parquet read in byte ranges from ${new URL(PARQUET_URL()).host}`;
     void loadRawFile();
     await selectStep(FINAL_STEP);
     /* The grids, summaries and chart each answer on their own: the line stays up until all have. */
+    building = true;
     status.set('Building the grids, summaries and chart');
     const answered = () => [left, right].every((p) => p.total != null && p.summaryGrid) && built.chartData;
     for (let waited = 0; !answered() && waited < 120000; waited += 100) await new Promise((r) => { setTimeout(r, 100); });
