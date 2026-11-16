@@ -4,13 +4,14 @@
  * finishes loading while the engine starts.
  */
 
-import * as LG from 'https://cdn.latticegrid.dev/lattice-grid@1.111.7/lattice-grid.esm.min.js?v=1.111.7-20261022';
-import { createChart } from 'https://cdn.latticegrid.dev/lattice-grid@1.111.7/modules/charts.esm.min.js?v=1.111.7-20261022';
 import { DEMO_LICENCE } from './src/licence.js';
 import { startDuckDB } from './src/duckdb.js';
 import { createStatus, megabytes } from './src/loading.js';
-import { PARQUET_URL, MONTH_LABEL } from './src/config.js';
+import { GRID_BASE, GRID_STAMP, PARQUET_URL, MONTH_LABEL } from './src/config.js';
 import { buildPipeline } from './src/pipeline.js';
+
+const LG = await import(`${GRID_BASE}lattice-grid.esm.min.js?v=${GRID_STAMP}`);
+const { createChart } = await import(`${GRID_BASE}modules/charts.esm.min.js?v=${GRID_STAMP}`);
 
 /* Applied before anything is drawn: a grid keeps the licence in force when it was built. */
 LG.setLicence(DEMO_LICENCE);
