@@ -8,6 +8,10 @@
  * with `node tools/serve.mjs` after `node tools/build-parquet.mjs`.
  */
 
+/** The grid, in one place: every grid URL (script, module) is built from these. index.html carries the stylesheet link, which must match. */
+export const GRID_BASE = 'https://cdn.latticegrid.dev/lattice-grid@1.123.3/';
+export const GRID_STAMP = '1.123.3-20261116';
+
 /** The month on show; `tools/build-parquet.mjs` writes the files under this name. */
 export const MONTH = '2025-03';
 export const MONTH_LABEL = 'March 2025';
